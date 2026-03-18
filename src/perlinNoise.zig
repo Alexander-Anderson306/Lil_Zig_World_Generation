@@ -20,7 +20,31 @@ fn fade(t: f32) f32 {
     return t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
 }
 
-pub fn generatePerlinNoise(allocator: std.mem.Allocator, height: u32, width: u32, squaresPerLat: u8, seed: u64) ![][]f32 {
+pub fn getNoiseStandardDeviation(noise: [][]f32) f32 {
+    var standardDev = 0;
+    const mean = getNoiseMean(noise);
+    for (noise) |row| {
+        for (row) |col| {
+            standardDev += @exp2(col - mean);
+        }
+    }
+
+    standardDev /= (noise.len * noise[0].len);
+    return @sqrt(standardDev);
+}
+
+pub fn getNoiseMean(noise: [][]f32) f32 {
+    var mean: f32 = 0;
+    for (noise) |row| {
+        for (row) |col| {
+            mean += col;
+        }
+    }
+
+    return mean / (noise.len * noise[0].len);
+}
+
+pub fn generatePerlinNoise(allocator: std.mem.Allocator, height: u32, width: u32, squaresPerLat: u16, seed: u64) ![][]f32 {
     const errors = error{ InvalidHeight, InvalidWidth, InvalidSquaresPerLat };
     if (height > rl.getMonitorHeight(rl.getCurrentMonitor())) {
         return errors.InvalidHeight;
@@ -105,7 +129,8 @@ pub fn generatePerlinNoise(allocator: std.mem.Allocator, height: u32, width: u32
             const ix1 = lerp(dottl, dottr, u);
             const value = lerp(ix0, ix1, v);
 
-            squareNoise[i][j] = value;
+            //normalized to [0, 1]
+            squareNoise[i][j] = (value + 1.0) * 0.5;
         }
     }
 
