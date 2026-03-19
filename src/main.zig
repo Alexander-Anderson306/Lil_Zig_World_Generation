@@ -9,7 +9,7 @@ pub fn main() !void {
 
     rl.toggleFullscreen();
 
-    const blockSize: u16 = 1;
+    const blockSize: u16 = 5;
 
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();

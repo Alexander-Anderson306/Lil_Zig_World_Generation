@@ -97,32 +97,8 @@ pub const Terrain = struct {
             }
         }
 
-        //AI GENERATED CODE HERE, will go over tomorrow but im eepy
-        const buckets = 1024;
-        var hist: [buckets]usize = [_]usize{0} ** buckets;
-
-        for (combinedNoise) |row| {
-            for (row) |value| {
-                var idx: usize = @intFromFloat(value * buckets);
-                if (idx >= buckets) idx = buckets - 1;
-                hist[idx] += 1;
-            }
-        }
-
-        const target = (combinedNoise.len * combinedNoise[0].len) * 3 / 5;
-        var running: usize = 0;
-        var cutoff_bucket: usize = 0;
-
-        for (hist, 0..) |count, i| {
-            running += count;
-            if (running >= target) {
-                cutoff_bucket = i;
-                break;
-            }
-        }
-
-        const cutoff = @as(f32, @floatFromInt(cutoff_bucket)) / buckets;
-        //END OF GENERATED CODE sorry world, but i was getting eepy
+        //use a 3/5 percentile
+        const cutoff = pln.getNoisePercentile(combinedNoise, (3.0 / 5.0));
 
         for (0..self.blocks.len) |i| {
             for (0..self.blocks[i].len) |j| {

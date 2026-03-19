@@ -44,6 +44,35 @@ pub fn getNoiseMean(noise: [][]f32) f32 {
     return mean / (noise.len * noise[0].len);
 }
 
+pub fn getNoisePercentile(noise: [][]f32, percentileDecimal: f32) f32 {
+    const buckets = 1024;
+    //initializes an array of usize length buckets. element at 0 = 0 ** number of buckets
+    //this initializes the array to have all zeros
+    var hist: [buckets]usize = [_]usize{0} ** buckets;
+
+    for (noise) |row| {
+        for (row) |value| {
+            var idx: usize = @intFromFloat(value * buckets);
+            if (idx >= buckets) idx = buckets - 1;
+            hist[idx] += 1;
+        }
+    }
+
+    const target = (noise.len * noise[0].len) * percentileDecimal;
+    var running: usize = 0;
+    var cutoffBucket: usize = 0;
+
+    for (hist, 0..) |count, i| {
+        running += count;
+        if (running >= target) {
+            cutoffBucket = i;
+            break;
+        }
+    }
+
+    return @as(f32, @floatFromInt(cutoffBucket)) / buckets;
+}
+
 pub fn generatePerlinNoise(allocator: std.mem.Allocator, height: u32, width: u32, squaresPerLat: u16, seed: u64) ![][]f32 {
     const errors = error{ InvalidHeight, InvalidWidth, InvalidSquaresPerLat };
     if (height > rl.getMonitorHeight(rl.getCurrentMonitor())) {
