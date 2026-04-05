@@ -118,7 +118,7 @@ pub fn generatePerlinNoise(allocator: std.mem.Allocator, height: u32, width: u32
 
     //initialize the random gradients
     for (0..latticeHeight + 1) |i| {
-        latticeVectors[i] = try allocator.alloc(rl.Vector2, latticeWidth + 1);
+        latticeVectors[i] = try allocator.alloc(rl.Vector2, latticeWidth);
 
         //we do 0...n-1 because the last lattice is shared by the first and last column
         for (0..latticeWidth) |j| {
@@ -130,24 +130,25 @@ pub fn generatePerlinNoise(allocator: std.mem.Allocator, height: u32, width: u32
     //big generate perlin noise step
     for (0..height) |i| {
         squareNoise[i] = try allocator.alloc(f32, width);
-        //we go from 1 to n-2 because the first and last column lattice are shared
         for (0..width) |j| {
+            //our squares are unit squares. So the center of one square is sqrt(0.5 * 0.5)
+            //x and y are the result of a function which maps the input heights onto lattice height
+            const y = (@as(f32, @floatFromInt(i)) + 0.5) / @as(f32, @floatFromInt(height)) * @as(f32, @floatFromInt(latticeHeight));
+            const x = (@as(f32, @floatFromInt(j)) + 0.5) / @as(f32, @floatFromInt(width)) * @as(f32, @floatFromInt(latticeWidth));
+            const yFloor = @floor(y);
+            const xFloor = @floor(x);
+
             //calculate the current lattice square we are in
-            const latticeI = i / spl;
-            const latticeJ = j / spl;
+            const latticeI: u32 = @intFromFloat(yFloor);
+            const latticeJ: u32 = @intFromFloat(xFloor);
 
             //use these to wrap the edge
             const nextI = latticeI + 1;
             const nextJ = (latticeJ + 1) % latticeWidth;
 
-            //calculate the squares print position within the lattice square
-            const localI = i % spl;
-            const localJ = j % spl;
-
-            //our squares are unit squares. So the center of one square is sqrt(0.5 * 0.5)
-            const fy = (@as(f32, @floatFromInt(localI)) + 0.5) / @as(f32, @floatFromInt(spl));
-            const fx = (@as(f32, @floatFromInt(localJ)) + 0.5) / @as(f32, @floatFromInt(spl));
-
+            //fx and fy are where within the lattice we are
+            const fy = y - yFloor;
+            const fx = x - xFloor;
             const blVect = rl.Vector2.init(fx, fy);
             const brVect = rl.Vector2.init(fx - 1.0, fy);
             const tlVect = rl.Vector2.init(fx, fy - 1.0);

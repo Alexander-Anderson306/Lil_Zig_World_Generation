@@ -8,11 +8,17 @@ pub const Terrain = struct {
     blockSize: u16,
     blocks: [][]Block,
     seaLevelCutoff: f32,
+    seed: u64,
+
+    fn nextSeed(self: *Terrain) u64 {
+        self.seed += 1;
+        return self.seed;
+    }
 
     //this struct represents an individual terrain block
     const Block = struct { color: rl.Color, elevation: f32, temperature: f32, humidity: f32 };
 
-    pub fn init(allocator: std.mem.Allocator, blockSize: u16) !Terrain {
+    pub fn init(allocator: std.mem.Allocator, blockSize: u16, seed: u64) !Terrain {
         const screenHeight = rl.getRenderHeight();
         const screenWidth = rl.getRenderWidth();
 
@@ -30,6 +36,7 @@ pub const Terrain = struct {
             .blockSize = blockSize,
             .blocks = blocks,
             .seaLevelCutoff = 0,
+            .seed = seed,
         };
 
         //call generateSeaLevel), generateelevation(), and generateHumidity() here
@@ -52,17 +59,18 @@ pub const Terrain = struct {
         const medLattice: u16 = @intCast(self.blocks.len / 12); //6
         const denseLattice: u16 = @intCast(self.blocks.len / 3); //2
 
-        const noise1 = try pln.generatePerlinNoise(self.allocator, @intCast(self.blocks.len), @intCast(self.blocks[0].len), denseLattice, @intCast(std.time.microTimestamp()));
+        //increment seed after every use
+        const noise1 = try pln.generatePerlinNoise(self.allocator, @intCast(self.blocks.len), @intCast(self.blocks[0].len), denseLattice, self.nextSeed());
         errdefer {
             for (noise1) |row| self.allocator.free(row);
             self.allocator.free(noise1);
         }
-        const noise2 = try pln.generatePerlinNoise(self.allocator, @intCast(self.blocks.len), @intCast(self.blocks[0].len), medLattice, @intCast(std.time.microTimestamp() + 1));
+        const noise2 = try pln.generatePerlinNoise(self.allocator, @intCast(self.blocks.len), @intCast(self.blocks[0].len), medLattice, self.nextSeed());
         errdefer {
             for (noise2) |row| self.allocator.free(row);
             self.allocator.free(noise2);
         }
-        const noise3 = try pln.generatePerlinNoise(self.allocator, @intCast(self.blocks.len), @intCast(self.blocks[0].len), sparseLattice, @intCast(std.time.microTimestamp() + 3));
+        const noise3 = try pln.generatePerlinNoise(self.allocator, @intCast(self.blocks.len), @intCast(self.blocks[0].len), sparseLattice, self.nextSeed());
         errdefer {
             for (noise3) |row| self.allocator.free(row);
             self.allocator.free(noise3);
@@ -120,7 +128,49 @@ pub const Terrain = struct {
         //randomly select magnitude of hight
         //use some distrobution function that makes the middle of the curve the highest values.
         //if mountain ranges spawn underwater we can make the center of the range an island volcano easy fix
-        _ = self;
+
+        //generate two layers of perlin noise
+        //first layer is general elivation
+        //second layer is for local hills
+
+        const latticeSize1: u16 = @intCast(self.blocks.len / 4);
+        const latticeSize2: u16 = @intCast(self.blocks.len / 32);
+
+        const noise1 = try pln.generatePerlinNoise(self.allocator, @intCast(self.blocks.len), @intCast(self.blocks[0].len), latticeSize1, self.nextSeed());
+        const noise2 = try pln.generatePerlinNoise(self.allocator, @intCast(self.blocks.len), @intCast(self.blocks[0].len), latticeSize2, self.nextSeed());
+
+        defer {
+            for (noise1) |row| {
+                self.allocator.free(row);
+            }
+            self.allocator.free(noise1);
+
+            for (noise2) |row| {
+                self.allocator.free(row);
+            }
+            self.allocator.free(noise2);
+        }
+
+        const elivationNoise: [][]f32 = try self.allocator.alloc([]f32, self.blocks.len);
+        for (elivationNoise) |*row| {
+            row.* = try self.allocator.alloc(f32, self.blocks[0].len);
+        }
+
+        defer {
+            for (elivationNoise) |row| {
+                self.allocator.free(row);
+            }
+            self.allocator.free(elivationNoise);
+        }
+
+        for (0..elivationNoise.len) |i| {
+            for (0..elivationNoise[i].len) |j| {
+                elivationNoise[i][j] = (noise1[i][j] * 0.8) + (noise2[i][j] * 0.2);
+            }
+        }
+
+        //we should normalize the noise to -0.5 and 0.5 so that we can raise and lower elivation
+        //make sure that elivation does not dip below sea level
         return;
     }
 

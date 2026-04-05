@@ -15,7 +15,7 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    var terrain = try tg.Terrain.init(allocator, blockSize);
+    var terrain = try tg.Terrain.init(allocator, blockSize, 67);
     defer terrain.deinit();
 
     rl.setTargetFPS(60);
