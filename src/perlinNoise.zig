@@ -58,7 +58,8 @@ pub fn getNoisePercentile(noise: [][]f32, percentileDecimal: f32) f32 {
         }
     }
 
-    const target = (noise.len * noise[0].len) * percentileDecimal;
+    const total: usize = noise.len * noise[0].len;
+    const target: usize = @intFromFloat(@as(f32, @floatFromInt(total)) * percentileDecimal);
     var running: usize = 0;
     var cutoffBucket: usize = 0;
 
@@ -119,7 +120,8 @@ pub fn generatePerlinNoise(allocator: std.mem.Allocator, height: u32, width: u32
     for (0..latticeHeight + 1) |i| {
         latticeVectors[i] = try allocator.alloc(rl.Vector2, latticeWidth + 1);
 
-        for (0..latticeWidth + 1) |j| {
+        //we do 0...n-1 because the last lattice is shared by the first and last column
+        for (0..latticeWidth) |j| {
             latticeVectors[i][j] = randomGradient(rng);
         }
     }
@@ -128,10 +130,15 @@ pub fn generatePerlinNoise(allocator: std.mem.Allocator, height: u32, width: u32
     //big generate perlin noise step
     for (0..height) |i| {
         squareNoise[i] = try allocator.alloc(f32, width);
+        //we go from 1 to n-2 because the first and last column lattice are shared
         for (0..width) |j| {
             //calculate the current lattice square we are in
             const latticeI = i / spl;
             const latticeJ = j / spl;
+
+            //use these to wrap the edge
+            const nextI = latticeI + 1;
+            const nextJ = (latticeJ + 1) % latticeWidth;
 
             //calculate the squares print position within the lattice square
             const localI = i % spl;
@@ -148,9 +155,9 @@ pub fn generatePerlinNoise(allocator: std.mem.Allocator, height: u32, width: u32
 
             //get the dot product of the gradients and the distances
             const dotbl = latticeVectors[latticeI][latticeJ].dotProduct(blVect);
-            const dotbr = latticeVectors[latticeI][latticeJ + 1].dotProduct(brVect);
-            const dottl = latticeVectors[latticeI + 1][latticeJ].dotProduct(tlVect);
-            const dottr = latticeVectors[latticeI + 1][latticeJ + 1].dotProduct(trVect);
+            const dotbr = latticeVectors[latticeI][nextJ].dotProduct(brVect);
+            const dottl = latticeVectors[nextI][latticeJ].dotProduct(tlVect);
+            const dottr = latticeVectors[nextI][nextJ].dotProduct(trVect);
 
             const u = fade(fx);
             const v = fade(fy);

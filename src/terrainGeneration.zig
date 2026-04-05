@@ -7,6 +7,7 @@ pub const Terrain = struct {
     allocator: std.mem.Allocator,
     blockSize: u16,
     blocks: [][]Block,
+    seaLevelCutoff: f32,
 
     //this struct represents an individual terrain block
     const Block = struct { color: rl.Color, elevation: f32, temperature: f32, humidity: f32 };
@@ -28,10 +29,12 @@ pub const Terrain = struct {
             .allocator = allocator,
             .blockSize = blockSize,
             .blocks = blocks,
+            .seaLevelCutoff = 0,
         };
 
         //call generateSeaLevel), generateelevation(), and generateHumidity() here
         try terrain.generateSeaLevel();
+        try terrain.assignBiome();
 
         return terrain;
     }
@@ -45,9 +48,9 @@ pub const Terrain = struct {
 
     fn generateSeaLevel(self: *Terrain) !void {
         //density sizes of the noise
-        const sparseLattice: u16 = @intCast(self.blocks.len / 32);
-        const medLattice: u16 = @intCast(self.blocks.len / 6);
-        const denseLattice: u16 = @intCast(self.blocks.len / 2);
+        const sparseLattice: u16 = @intCast(self.blocks.len / 45); //32
+        const medLattice: u16 = @intCast(self.blocks.len / 12); //6
+        const denseLattice: u16 = @intCast(self.blocks.len / 3); //2
 
         const noise1 = try pln.generatePerlinNoise(self.allocator, @intCast(self.blocks.len), @intCast(self.blocks[0].len), denseLattice, @intCast(std.time.microTimestamp()));
         errdefer {
@@ -98,19 +101,10 @@ pub const Terrain = struct {
         }
 
         //use a 3/5 percentile
-        const cutoff = pln.getNoisePercentile(combinedNoise, (3.0 / 5.0));
+        self.seaLevelCutoff = pln.getNoisePercentile(combinedNoise, (3.0 / 5.0));
 
         for (0..self.blocks.len) |i| {
             for (0..self.blocks[i].len) |j| {
-                //handle this tomorrow
-                if (combinedNoise[i][j] > cutoff) {
-                    //this is a land tile
-                    self.blocks[i][j].color = rl.Color.green;
-                } else {
-                    //this is a ocean tile
-                    self.blocks[i][j].color = rl.Color.blue;
-                }
-
                 self.blocks[i][j].elevation = combinedNoise[i][j];
             }
         }
@@ -118,14 +112,40 @@ pub const Terrain = struct {
         return;
     }
 
-    fn generateElevation() !void {
+    fn generateElevation(self: *Terrain) !void {
+        //generate for now two layers of noise for general elivation
+        //only apply noise to terrain thats above sea level
+        //then use some sort of random curve drawing algorithm
+        //draw a curve on the map with something like a sine wave at an angle
+        //randomly select magnitude of hight
+        //use some distrobution function that makes the middle of the curve the highest values.
+        //if mountain ranges spawn underwater we can make the center of the range an island volcano easy fix
+        _ = self;
         return;
     }
 
-    fn generateHumidity() !void {
+    fn applyTemperature(self: *Terrain) !void {
+        _ = self;
         return;
     }
 
+    fn generateHumidity(self: *Terrain) !void {
+        _ = self;
+        return;
+    }
+
+    fn assignBiome(self: *Terrain) !void {
+        for (self.blocks) |row| {
+            for (row) |*block| {
+                if (block.elevation > self.seaLevelCutoff) {
+                    block.color = rl.Color.green;
+                } else {
+                    block.color = rl.Color.dark_blue;
+                }
+            }
+        }
+        return;
+    }
     //draws the terrain to the screen
     pub fn displayTerrain(self: *Terrain) void {
         for (0..self.blocks.len) |i| {
