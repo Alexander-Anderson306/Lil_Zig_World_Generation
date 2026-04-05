@@ -134,7 +134,7 @@ pub const Terrain = struct {
         //second layer is for local hills
 
         const latticeSize1: u16 = @intCast(self.blocks.len / 4);
-        const latticeSize2: u16 = @intCast(self.blocks.len / 32);
+        const latticeSize2: u16 = @intCast(self.blocks.len / 12);
 
         const noise1 = try pln.generatePerlinNoise(self.allocator, @intCast(self.blocks.len), @intCast(self.blocks[0].len), latticeSize1, self.nextSeed());
         const noise2 = try pln.generatePerlinNoise(self.allocator, @intCast(self.blocks.len), @intCast(self.blocks[0].len), latticeSize2, self.nextSeed());
@@ -151,26 +151,31 @@ pub const Terrain = struct {
             self.allocator.free(noise2);
         }
 
-        const elivationNoise: [][]f32 = try self.allocator.alloc([]f32, self.blocks.len);
-        for (elivationNoise) |*row| {
-            row.* = try self.allocator.alloc(f32, self.blocks[0].len);
-        }
-
-        defer {
-            for (elivationNoise) |row| {
-                self.allocator.free(row);
-            }
-            self.allocator.free(elivationNoise);
-        }
-
-        for (0..elivationNoise.len) |i| {
-            for (0..elivationNoise[i].len) |j| {
-                elivationNoise[i][j] = (noise1[i][j] * 0.8) + (noise2[i][j] * 0.2);
+        //this is the positive elivation noise
+        for (0..self.blocks.len) |i| {
+            for (0..self.blocks[0].len) |j| {
+                if (self.blocks[i][j] > self.seaLevelCutoff) {
+                    self.blocks[i][j].elevation += (noise1[i][j] * 0.8) + (noise2[i][j] * 0.2);
+                }
             }
         }
 
-        //we should normalize the noise to -0.5 and 0.5 so that we can raise and lower elivation
-        //make sure that elivation does not dip below sea level
+        const noise3 = try pln.generatePerlinNoise(self.allocator, @intCast(self.blocks.len), @intCast(self.blocks[0].len), latticeSize2, self.nextSeed());
+        //this is the negative elivation noise
+        for (0..self.blocks.len) |i| {
+            for (0..self.blocks[0].len) |j| {
+                if (self.blocks[i][j] > self.seaLevelCutoff) {
+                    //center around -0.5 0.5
+                    const raw = noise3[i][j] - 0.5;
+                    const depression = @max(raw, 0.0);
+                    //change sea level cut off value for different depression scaling
+                    if (self.blocks[i][j].elevation > self.seaLevelCutoff * 1.2) {
+                        self.blocks[i][j].elevation -= depression * 2.0;
+                    }
+                }
+            }
+        }
+
         return;
     }
 
@@ -185,10 +190,28 @@ pub const Terrain = struct {
     }
 
     fn assignBiome(self: *Terrain) !void {
+        //we use the mean of the block height above sea level to decide things
+        var mean: f32 = 0;
+        var landCount: f32 = 0;
+        for (self.blocks) |row| {
+            for (row) |col| {
+                if (col.elevation > self.seaLevelCutoff) {
+                    mean += col.elevation;
+                    landCount += 1;
+                }
+            }
+        }
+        mean /= landCount;
+
         for (self.blocks) |row| {
             for (row) |*block| {
                 if (block.elevation > self.seaLevelCutoff) {
-                    block.color = rl.Color.green;
+                    //higher elivation
+                    if (block.elevation > mean) {
+                        block.color = rl.Color.dark_green;
+                    } else {
+                        block.color = rl.Color.green;
+                    }
                 } else {
                     block.color = rl.Color.dark_blue;
                 }
